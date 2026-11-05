@@ -227,9 +227,7 @@ class Result:
                             self._trp_norm,
                             cls._rcParams,
                     )
-                    self._fc = "Normalized FC"
                     self._ion = self._run_statistical_pipeline(self._ion, self.args)
-                    self._ion = _functions._add_log2_column(self._ion, self._fc)
                     self._ion = self._annotate_lip_sites(self._ion, self.args)
                 case _:
                     self._ion = self._run_statistical_pipeline(self._ion, self.args)
