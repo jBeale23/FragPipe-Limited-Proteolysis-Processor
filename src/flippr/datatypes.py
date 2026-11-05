@@ -19,6 +19,7 @@ from .parameters import (
 type RcParams = dict[str, Any]
 type Replicate = int | tuple[int, int] | tuple[tuple[int, ...], tuple[int, ...]]
 type RunArgs = dict[str, Any]
+type NormalizationType = Literal["fold_change", "ion_intensity"]
 
 replicate = Replicate
 
@@ -39,6 +40,7 @@ class Process:
         trp_ctrl: str | None = None,
         trp_test: str | None = None,
         trp_n_rep: Replicate | None = None,
+        normalization_type: NormalizationType = "fold_change",
     ) -> None:
         self._rcParams = rcParams
         self._method = method
@@ -84,6 +86,7 @@ class Process:
             self._trp_path = trp_path
             self._trp_ctrl_name = trp_ctrl
             self._trp_test_name = trp_test
+            self._normalization_type: NormalizationType = normalization_type
             (
                 self._trp_ctrl_rep_list,
                 self._trp_test_rep_list,
@@ -91,8 +94,8 @@ class Process:
                 self._trp_test_n_rep,
             ) = self._create_replicate_variables(trp_ctrl, trp_test, trp_n_rep)
 
-    def run(self, normalization_type: Literal["flippr", "per-protein"] = "flippr") -> Result:
-        return Result(self, normalization_type)
+    def run(self) -> Result:
+        return Result(self)
 
     def _create_replicate_variables(
         self,
@@ -182,7 +185,7 @@ class Process:
 class Result:
     """Organizes a FLiPPR Result"""
 
-    def __init__(self, cls: Process, normalization_type: Literal["flippr", "per-protein"] = "flippr" ) -> None:
+    def __init__(self, cls: Process) -> None:
         self._fc: str = "FC"
         self._rcParams = cls._rcParams
 
@@ -219,8 +222,8 @@ class Result:
                 "rcParams": cls._rcParams,
             }
 
-            match normalization_type:
-                case "per-protein":
+            match cls._normalization_type:
+                case "ion_intensity":
                     self._trp_norm = _reader._read_trp(cls._trp_path, cls._method)
                     self._ion = _functions._normalize_ion_intensity_by_trp(
                             self._ion,
