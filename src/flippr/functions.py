@@ -368,6 +368,44 @@ def _normalize_fold_change_by_trp(
     return _apply_trp_normalization(df, normalization_factors)
 
 
+def _normalize_ion_intensity_by_trp(
+    df: pl.DataFrame,
+    trp_norm: pl.DataFrame,
+    rcParams: RcParams,
+    **_: Any,
+) -> pl.DataFrame:
+    imputed_trp = (
+        trp_norm.fill_nan(0)
+        .fill_null(0)
+        .with_columns(imputation=pl.mean_horizontal(cs.contains("Intensity")))
+        .with_columns(
+            [
+                pl.when(pl.col(col).eq(0)).then(pl.col("imputation")).otherwise(pl.col(col)).alias(col)
+                for col in trp_norm.select(cs.contains("Intensity")).columns
+            ]
+        )
+        .drop("imputation")
+    )
+    # Imputes any missing ion intensities with a small value near the limit of detection (may be worth using 0?)
+    imputed_ions = (
+        df.fill_nan(0)
+        .fill_null(0)
+        .with_columns(
+            [
+                pl.when(pl.col(col).eq(0)).then(pl.lit(10_000)).otherwise(pl.col(col)).alias(col)
+                for col in df.select(cs.contains("Intensity")).columns
+            ]
+        )
+    )
+    norm_intensities = imputed_ions.join(imputed_trp, on="Protein ID", how="inner", suffix="_norm_factor")
+    return norm_intensities.with_columns(
+        [
+            pl.col(col).truediv(pl.col(f"{col}_norm_factor")).alias(col)
+            for col in imputed_ions.select(cs.contains("Intensity")).columns
+        ]
+    ).drop(cs.contains("_norm_factor"))
+
+
 def _add_peptide_terminal_residues(df: pl.DataFrame, **_: Any) -> pl.DataFrame:
     return df.with_columns(
         pl.col("Peptide Sequence").str.head(1).alias("Start AA"),

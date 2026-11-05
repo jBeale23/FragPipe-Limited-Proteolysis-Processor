@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from functools import cached_property
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 import polars as pl
 
@@ -91,8 +91,8 @@ class Process:
                 self._trp_test_n_rep,
             ) = self._create_replicate_variables(trp_ctrl, trp_test, trp_n_rep)
 
-    def run(self) -> Result:
-        return Result(self)
+    def run(self, normalization_type: Literal["flippr", "per-protein"] = "flippr") -> Result:
+        return Result(self, normalization_type)
 
     def _create_replicate_variables(
         self,
@@ -182,7 +182,7 @@ class Process:
 class Result:
     """Organizes a FLiPPR Result"""
 
-    def __init__(self, cls: Process) -> None:
+    def __init__(self, cls: Process, normalization_type: Literal["flippr", "per-protein"] = "flippr" ) -> None:
         self._fc: str = "FC"
         self._rcParams = cls._rcParams
 
@@ -201,8 +201,6 @@ class Result:
 
         self._ion = _reader._read_ion(cls._lip_path, cls._method)
         self._ion = self._ion.select(cls._ion_columns)
-        self._ion = self._run_statistical_pipeline(self._ion, self.args)
-        self._ion = self._annotate_lip_sites(self._ion, self.args)
 
         if cls._is_trp_norm:
             assert cls._trp_path is not None
@@ -221,15 +219,34 @@ class Result:
                 "rcParams": cls._rcParams,
             }
 
-            self._trp_norm = _reader._read_trp(cls._trp_path, cls._method)
-            self._trp_norm = self._run_statistical_pipeline(self._trp_norm, self.trp_args)
-            self._ion = _functions._normalize_fold_change_by_trp(
-                self._ion,
-                self._trp_norm,
-                cls._rcParams,
-            )
-            self._fc = "Normalized FC"
-            self._ion = _functions._add_log2_column(self._ion, self._fc)
+            match normalization_type:
+                case "per-protein":
+                    self._trp_norm = _reader._read_trp(cls._trp_path, cls._method)
+                    self._ion = _functions._normalize_ion_intensity_by_trp(
+                            self._ion,
+                            self._trp_norm,
+                            cls._rcParams,
+                    )
+                    self._fc = "Normalized FC"
+                    self._ion = self._run_statistical_pipeline(self._ion, self.args)
+                    self._ion = _functions._add_log2_column(self._ion, self._fc)
+                    self._ion = self._annotate_lip_sites(self._ion, self.args)
+                case _:
+                    self._ion = self._run_statistical_pipeline(self._ion, self.args)
+                    self._ion = self._annotate_lip_sites(self._ion, self.args)
+                    self._trp_norm = _reader._read_trp(cls._trp_path, cls._method)
+                    self._trp_norm = self._run_statistical_pipeline(self._trp_norm, self.trp_args)
+                    self._ion = _functions._normalize_fold_change_by_trp(
+                        self._ion,
+                        self._trp_norm,
+                        cls._rcParams,
+                    )
+                    self._fc = "Normalized FC"
+                    self._ion = _functions._add_log2_column(self._ion, self._fc)
+        else:
+            self._ion = self._run_statistical_pipeline(self._ion, self.args)
+            self._ion = self._annotate_lip_sites(self._ion, self.args)
+
 
     def _run_statistical_pipeline(self, df: pl.DataFrame, args: RunArgs) -> pl.DataFrame:
         df = _functions._filter_intensities_by_missingness(df, **args)
