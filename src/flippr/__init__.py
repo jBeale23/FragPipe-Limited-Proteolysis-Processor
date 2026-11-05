@@ -149,6 +149,7 @@ class Study:
         trp_ctrl: str | None = None,
         trp_test: str | None = None,
         trp_n_rep: _types.Replicate | None = None,
+        normalization_type: _types.NormalizationType = "fold_change",
     ) -> None:
         """
         Register one control-vs-test comparison.
@@ -176,6 +177,8 @@ class Study:
                 normalization.
             trp_n_rep: TrP replicate layout. Required only for TrP
                 normalization.
+            normalization_type: Method to use for TrP normalization. Required
+                only for TrP normalization
 
         Raises:
             ValueError: If only part of the TrP normalization arguments are
@@ -197,6 +200,7 @@ class Study:
             ...     trp_ctrl="CTRL",
             ...     trp_test="DRUG",
             ...     trp_n_rep=3,
+                    normalization_type="fold_change",
             ... )
 
             Add two comparisons before one run:
@@ -219,6 +223,7 @@ class Study:
                     trp_ctrl,
                     trp_test,
                     trp_n_rep,
+                    normalization_type,
                 )
             }
         )
