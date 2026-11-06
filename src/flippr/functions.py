@@ -375,10 +375,15 @@ def _normalize_ion_intensity_by_trp(
     rcParams: RcParams,
     **_: Any,
 ) -> pl.DataFrame:
+    loc = rcParams.get("ion.aon_impute_loc", 1e4)
+    scale = rcParams.get("ion.aon_impute_scale", 1e3)
+    seed = rcParams.get("ion.aon_impute_seed", 0)
+    rng = np.random.default_rng(seed)
+
     imputed_trp = (
-        trp_norm.fill_nan(0)
+        trp_norm.with_columns(imputation=pl.mean_horizontal(cs.contains("Intensity")))
+        .fill_nan(0)
         .fill_null(0)
-        .with_columns(imputation=pl.mean_horizontal(cs.contains("Intensity")))
         .with_columns(
             [
                 pl.when(pl.col(col).eq(0)).then(pl.col("imputation")).otherwise(pl.col(col)).alias(col)
@@ -393,7 +398,10 @@ def _normalize_ion_intensity_by_trp(
         .fill_null(0)
         .with_columns(
             [
-                pl.when(pl.col(col).eq(0)).then(pl.lit(10_000)).otherwise(pl.col(col)).alias(col)
+                pl.when(pl.col(col).eq(0))
+                .then(rng.normal(loc=loc, scale=scale, size=1))
+                .otherwise(pl.col(col))
+                .alias(col)
                 for col in df.select(cs.contains("Intensity")).columns
             ]
         )
